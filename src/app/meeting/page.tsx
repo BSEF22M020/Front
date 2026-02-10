@@ -1,12 +1,13 @@
-'use client'
+'use client';
 
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
 import {
   StreamCall,
   useStreamVideoClient,
   useCallStateHooks,
   ParticipantView,
   useCall,
+  Call,
 } from '@stream-io/video-react-sdk'
 import '@stream-io/video-react-sdk/dist/css/styles.css'
 
@@ -40,7 +41,20 @@ import {
 import StreamVideoWrapper from './stream'
 import { useSearchParams } from 'next/navigation'
 
-export default function Page() {
+// Define custom window interface for meeting handlers
+interface MeetingHandlers {
+  leave: () => Promise<void>
+  cameraOff: () => Promise<void>
+  cameraOn: () => Promise<void>
+}
+
+declare global {
+  interface Window {
+    __meetingHandlers?: MeetingHandlers
+  }
+}
+
+function MeetingPage() {
   const searchParams = useSearchParams()
   const [userId, setUserId] = useState('')
   const [meetingId, setMeetingId] = useState('')
@@ -95,9 +109,24 @@ export default function Page() {
   )
 }
 
+export default function Page() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-700 font-medium">Loading...</p>
+        </div>
+      </div>
+    }>
+      <MeetingPage />
+    </Suspense>
+  )
+}
+
 function MeetingRoom({ callId, meetingId }: { callId: string; meetingId: string }) {
   const client = useStreamVideoClient()
-  const [call, setCall] = useState<any>(null)
+  const [call, setCall] = useState<Call | null>(null)
   const [error, setError] = useState<string | null>(null)
   const joinedRef = useRef(false)
 
@@ -184,7 +213,7 @@ function MeetingWithChat({ meetingId }: { meetingId: string }) {
   return (
     <div className="h-screen flex bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="flex-1">
-        <MeetingUI onToggleChat={() => setShowChat(!showChat)} showChat={showChat} meetingId={meetingId} />
+        <MeetingUI onToggleChat={() => setShowChat(!showChat)} showChat={showChat} />
       </div>
 
       {showChat && (
@@ -212,14 +241,23 @@ function MeetingWithChat({ meetingId }: { meetingId: string }) {
   )
 }
 
+interface Participant {
+  sessionId: string
+  userId?: string
+  name?: string
+  isLocalParticipant?: boolean
+  videoStream?: MediaStream
+  audioStream?: MediaStream
+  screenShareStream?: MediaStream
+  isSpeaking?: boolean
+}
+
 function MeetingUI({ 
   onToggleChat, 
   showChat,
-  meetingId 
 }: { 
   onToggleChat: () => void
   showChat: boolean
-  meetingId: string
 }) {
   const call = useCall()
 
@@ -254,13 +292,13 @@ function MeetingUI({
     try {
       if (cameraOff) {
         await camera.enable()
-        if (typeof window !== 'undefined' && (window as any).__meetingHandlers) {
-          await (window as any).__meetingHandlers.cameraOn()
+        if (typeof window !== 'undefined' && window.__meetingHandlers) {
+          await window.__meetingHandlers.cameraOn()
         }
       } else {
         await camera.disable()
-        if (typeof window !== 'undefined' && (window as any).__meetingHandlers) {
-          await (window as any).__meetingHandlers.cameraOff()
+        if (typeof window !== 'undefined' && window.__meetingHandlers) {
+          await window.__meetingHandlers.cameraOff()
         }
       }
     } catch (e) {
@@ -284,8 +322,8 @@ function MeetingUI({
     if (!confirm('Are you sure you want to leave this meeting?')) return
     
     try {
-      if (typeof window !== 'undefined' && (window as any).__meetingHandlers) {
-        await (window as any).__meetingHandlers.leave()
+      if (typeof window !== 'undefined' && window.__meetingHandlers) {
+        await window.__meetingHandlers.leave()
       }
       
       await call.leave()
@@ -313,16 +351,16 @@ function MeetingUI({
   const formatDuration = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
-  const nameOf = (p: any) =>
+  const nameOf = (p: Participant) =>
     p.isLocalParticipant ? 'You' : p.name || p.userId || 'Guest'
 
   // Check if participant has video enabled
-  const hasVideo = (p: any) => {
+  const hasVideo = (p: Participant) => {
     return p.videoStream !== undefined && p.videoStream !== null
   }
 
   // Check if participant has audio enabled
-  const hasAudio = (p: any) => {
+  const hasAudio = (p: Participant) => {
     return p.audioStream !== undefined && p.audioStream !== null
   }
 

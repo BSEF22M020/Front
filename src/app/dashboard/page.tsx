@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Video, Plus, Users, ChartBar as BarChart3, FileText, Calendar, Clock, Eye, Settings, LogOut, Copy, ExternalLink, TrendingUp, Award, Target, Bell, Search, Filter, MoveHorizontal as MoreHorizontal, ArrowUpRight, Zap, Shield, Globe, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import axios from "axios";
@@ -53,7 +53,7 @@ interface ChartData {
   meetings: number;
 }
 
-export default function Dashboard() {
+function DashboardContent() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d');
   const router = useRouter();
@@ -822,5 +822,17 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className='w-screen h-screen flex justify-center items-center'>
+        <Loader />
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

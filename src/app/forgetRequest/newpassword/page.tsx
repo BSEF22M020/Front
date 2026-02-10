@@ -1,32 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Video, Eye, EyeOff, ArrowLeft, Mail, Lock, User, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import axios  from 'axios';
 import { useRouter } from 'next/navigation'
-import { error } from 'console';
 
 export default function ResetPassword() {
   const router = useRouter();
   const [isActivation, setActivation] = useState(true);
   const [logError, setIsError] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const [formData, setFormData] = useState<{
-  code: string;
-  password: string;
-  confirmPassword: string;
-  email:string
+    code: string;
+    password: string;
+    confirmPassword: string;
+    email: string;
   }>({
     code: '',
     password: '',
     confirmPassword: '',
-    email:localStorage.getItem('email') ?? ''
+    email: ''
   });
 
+  // Fix localStorage access - only run on client side
+  useEffect(() => {
+    setIsClient(true);
+    if (typeof window !== 'undefined') {
+      const email = localStorage.getItem('email') ?? '';
+      setFormData(prev => ({
+        ...prev,
+        email: email
+      }));
+    }
+  }, []);
+
   async function SendCodeAgain(){
-    const result= await axios.post(
+    const result = await axios.post(
       "https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/ForgetPassword",
       formData
     );
@@ -37,33 +49,35 @@ export default function ResetPassword() {
     console.log('Called! ---- ')
     try{
       if (isActivation){
-        console.log('Activatipn  == ')
-        const result= await axios.post(`https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/verifyResetCode` , formData)
-        console.log('-->: bef' , result.data);
+        console.log('Activation  == ')
+        const result = await axios.post(`https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/verifyResetCode`, formData)
+        console.log('-->: bef', result.data);
         if(result.status == 200){
           setActivation(false)
         }
-    }
-    else{
-      if (formData.confirmPassword !== formData.password){
+      }
+      else{
+        if (formData.confirmPassword !== formData.password){
           alert('both Password field Does not Match')
+          return;
         }
         const data = new FormData();
         data.append('code', formData.code);
         data.append('password', formData.password);
-        const result= await axios.post(`https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/resetPassword` , formData)
+        const result = await axios.post(`https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/resetPassword`, formData)
         if(result.status == 200){
-          localStorage.setItem('token' , result.data.token)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('token', result.data.token)
+          }
           router.push('/main'); 
         }
-    }
+      }
     }catch(error){
-        if (axios.isAxiosError(error)) {
+      if (axios.isAxiosError(error)) {
         console.error("Axios Error:", error.response?.status, error.response?.data);
         alert("Error: " + error.response?.data?.message || error.message);
       } else {
         console.error("Other Error:", error);
-        
         alert("An unexpected error occurred.");
       }
     }
@@ -75,6 +89,15 @@ export default function ResetPassword() {
       [field]: value
     }));
   };
+
+  // Don't render until client-side
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center">
+        <div className="text-onyx-gray">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center px-4 relative overflow-hidden">
@@ -127,29 +150,31 @@ export default function ResetPassword() {
                   value={formData.code}
                   onChange={(e) => handleInputChange('code', e.target.value)}
                   className="pl-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
-                  required={!isActivation}
+                  required={isActivation}
                 />
               </div>
             )}
 
-             {!isActivation && (<div className="relative">
-              <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40" />
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Password"
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                className="pl-12 pr-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
-                required
-              />
-              <button
-                type="button"
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-onyx-gray/40 hover:text-onyx-gray transition-colors"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>)}
+            {!isActivation && (
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40" />
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  className="pl-12 pr-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-onyx-gray/40 hover:text-onyx-gray transition-colors"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            )}
 
             {!isActivation && (
               <div className="relative">
@@ -165,22 +190,23 @@ export default function ResetPassword() {
               </div>
             )}
 
-
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-royal-blue to-deep-wine hover:from-deep-wine hover:to-royal-blue text-white py-3 h-12 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-              >
+            >
               {isActivation ? 'verify Code' : 'Set New Password'}
             </Button>
           </form>
+          
           {isActivation && (
-                <div className="flex justify-between items-center text-sm">
-                  <Button 
-                    onClick={()=>{SendCodeAgain()}}
-                   className="bg-transparent hover:bg-transparent  text-royal-blue hover:text-deep-wine font-medium">
-                    Send Code Again?
-                  </Button>
-              </div>
+            <div className="flex justify-between items-center text-sm mt-4">
+              <Button 
+                onClick={() => {SendCodeAgain()}}
+                className="bg-transparent hover:bg-transparent text-royal-blue hover:text-deep-wine font-medium"
+              >
+                Send Code Again?
+              </Button>
+            </div>
           )}
 
           {/* Footer */}

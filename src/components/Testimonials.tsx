@@ -63,7 +63,7 @@ export default function Testimonials() {
 
               {/* Content */}
               <p className="text-onyx-gray/80 mb-8 leading-relaxed italic">
-                "{testimonial.content}"
+                {testimonial.content}
               </p>
 
               {/* Author */}

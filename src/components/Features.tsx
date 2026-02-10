@@ -219,7 +219,7 @@ export default function Features() {
             {/* Content */}
             <div className="relative z-10">
               <h3 className="text-4xl font-bold text-white mb-4 drop-shadow-lg">
-                Let's Transform Your Meetings Together
+                Let us Transform Your Meetings Together
               </h3>
               <p className="text-lg text-white/90 mb-10 max-w-2xl mx-auto leading-relaxed">
                 Have questions? Want a demo? Our team is ready to help you get started.

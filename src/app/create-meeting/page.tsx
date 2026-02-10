@@ -1,17 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { 
   Video, 
   ArrowLeft, 
   Calendar, 
   Clock, 
-  Users, 
   Copy, 
   ExternalLink,
   Check,
-  Settings,
-  FileText,
   Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,7 +16,8 @@ import { Input } from '@/components/ui/input';
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from 'axios';
 
-export default function CreateMeeting() {
+// Wrap the component that uses useSearchParams in Suspense
+function CreateMeetingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -99,9 +97,9 @@ export default function CreateMeeting() {
           setMeetingCreated(true);
         }
     }catch(e){
-      //@ts-expect-error
+      // @ts-expect-error - Axios error object may not have proper type definitions, accessing message property for error handling
       console.error('[Error]',e.message);
-      //@ts-expect-error
+      // @ts-expect-error - Axios error object may not have proper type definitions, accessing message property for user alert
       alert(e.message);
     }
 
@@ -122,10 +120,10 @@ export default function CreateMeeting() {
             </div>
 
             <h1 className="text-3xl font-bold text-rich-black mb-4">
-              Meeting Created Successfully! 🎉
+              Meeting Created Successfully! 
             </h1>
             <p className="text-lg text-onyx-gray/80 mb-8">
-              Your meeting "{formData.name}" is ready. Share the link below with your participants.
+              Your meeting {formData.name} is ready. Share the link below with your participants.
             </p>
 
             {/* Meeting Details */}
@@ -163,14 +161,14 @@ export default function CreateMeeting() {
                     )}
                     {formData.daily && (
                       <div className="flex items-center">
-                        <FileText className="w-4 h-4 mr-2 text-deep-wine" />
+                        <Calendar className="w-4 h-4 mr-2 text-deep-wine" />
                         <span>Meet Daily</span>
                       </div>
                     )}
                     {formData.weekly && (
                       <div className="flex items-center">
-                        <Settings className="w-4 h-4 mr-2 text-deep-wine" />
-                        <span>weekly</span>
+                        <Clock className="w-4 h-4 mr-2 text-deep-wine" />
+                        <span>Weekly</span>
                       </div>
                     )}
                   </div>
@@ -415,5 +413,21 @@ export default function CreateMeeting() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main export with Suspense wrapper
+export default function CreateMeeting() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-alice-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-royal-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-onyx-gray">Loading...</p>
+        </div>
+      </div>
+    }>
+      <CreateMeetingContent />
+    </Suspense>
   );
 }
