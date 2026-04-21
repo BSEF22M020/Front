@@ -4,23 +4,19 @@ import { useState } from 'react';
 import { 
   Video, 
   ArrowLeft, 
-  Calendar, 
-  Clock, 
-  Users, 
-  Copy, 
-  ExternalLink,
-  Check,
-  Settings,
-  FileText,
-  Zap
+ AlertCircle,
+ Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { API_PREFIX } from '@/constants/api';
 
-export default function CreateMeeting() {
+export default function CreateOrganization() {
   const router = useRouter();
+  const [error, setError] = useState(''); 
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -41,8 +37,10 @@ export default function CreateMeeting() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
       console.log('called!')
+       setIsLoading(true);
+       setError('');
         const result = await axios.post(
-            "https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/CreateOrganization",
+            `${API_PREFIX}/api/CreateOrganization`,
             formData,
             {
               headers: {
@@ -53,6 +51,12 @@ export default function CreateMeeting() {
           )
       if(result.status == 201){
           router.push('/main'); 
+      }else{
+        if(result.status == 400){
+          setError(result.data.message || 'Invalid input. Please check your data and try again.');
+        }else{
+          setError('An unexpected error occurred. Please try again later.');
+        }
       }
 
 
@@ -76,7 +80,7 @@ export default function CreateMeeting() {
                 Smart<span className="text-gradient">Meet</span>
               </span>
             </div>
-
+            
             {/* Back Button */}
             <Button
               variant="ghost"
@@ -104,10 +108,19 @@ export default function CreateMeeting() {
               </p>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="flex items-center bg-red-100 text-red-700 px-4 py-3 rounded mb-6">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Meeting Title */}
               <div>
+                
                 <label className="block text-sm font-semibold text-rich-black mb-2">
                   Organization Title *
                 </label>
@@ -136,46 +149,17 @@ export default function CreateMeeting() {
               </div>
 
 
-              {/* Meeting Options */}
-              <div className="bg-alice-white rounded-2xl p-6">
-                <h3 className="text-lg font-semibold text-rich-black mb-4">Organization Security</h3>
-                <div className="space-y-4">
-
-                  <label className="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.domainRestrictionFlag}
-                      onChange={(e) => handleInputChange('domainRestrictionFlag', e.target.checked)}
-                      className="w-5 h-5 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
-                    />
-                    <div>
-                      <span className="font-medium text-rich-black">Restrict to Domain name</span>
-                      <p className="text-sm text-onyx-gray/60">only join account have same domain name in their email</p>
-                    </div>
-                  </label>
-
-                  {formData.domainRestrictionFlag && (
-                    <div className="ml-8 mt-3">
-                      <Input
-                        type="text"
-                        placeholder="e.g., @pucit.edu.pk"
-                        value={formData.domainName}
-                        onChange={(e) => handleInputChange('domainName', e.target.value)}
-                        className="w-full px-4 py-2 h-10 rounded-lg border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-royal-blue to-deep-wine hover:from-deep-wine hover:to-royal-blue text-white py-4 h-14 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                disabled={!formData.name.trim()}
+                disabled={!formData.name.trim() || isLoading}
               >
-                <Video className="w-5 h-5 mr-2" />
-                Create Organization
+                  {isLoading ? (  
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  ) : (
+                    "Create Organization"
+                  )}
               </Button>
             </form>
           </div>

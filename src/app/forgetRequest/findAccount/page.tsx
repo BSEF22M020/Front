@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import axios  from 'axios';
 import { error } from 'console';
 import { useRouter } from 'next/navigation'
+import { API_PREFIX } from '@/constants/api';
 
 export default function Activate() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function Activate() {
 
   try {
     const result= await axios.post(
-      "https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/ForgetPassword",
+      `${API_PREFIX}/api/ForgetPassword`,
       formData
     );
     console.log('result --> ' , result)

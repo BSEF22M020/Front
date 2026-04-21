@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import axios  from 'axios';
 import { useRouter } from 'next/navigation'
+import { API_PREFIX } from '@/constants/api';
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function ResetPassword() {
 
   async function SendCodeAgain(){
     const result = await axios.post(
-      "https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/ForgetPassword",
+      `${API_PREFIX}/api/ForgetPassword`,
       formData
     );
   }
@@ -50,7 +51,7 @@ export default function ResetPassword() {
     try{
       if (isActivation){
         console.log('Activation  == ')
-        const result = await axios.post(`https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/verifyResetCode`, formData)
+        const result = await axios.post(`${API_PREFIX}/api/verifyResetCode`, formData)
         console.log('-->: bef', result.data);
         if(result.status == 200){
           setActivation(false)
@@ -64,7 +65,7 @@ export default function ResetPassword() {
         const data = new FormData();
         data.append('code', formData.code);
         data.append('password', formData.password);
-        const result = await axios.post(`https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/resetPassword`, formData)
+        const result = await axios.post(`${API_PREFIX}/api/resetPassword`, data)
         if(result.status == 200){
           if (typeof window !== 'undefined') {
             localStorage.setItem('token', result.data.token)

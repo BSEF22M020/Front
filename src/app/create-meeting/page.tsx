@@ -1,30 +1,47 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { 
   Video, 
   ArrowLeft, 
   Calendar, 
   Clock, 
-  Copy, 
-  ExternalLink,
   Check,
-  Zap
+  Zap,
+  Loader2,
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from 'axios';
+import {API_PREFIX} from '@/constants/api';
 
-// Wrap the component that uses useSearchParams in Suspense
+interface Member {
+  id: number;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+interface OrganizationData {
+  owner: {
+    email: string;
+  };
+  members: Member[];
+}
+
 function CreateMeetingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const userId = Number(searchParams.get("userId"));
   const organId = Number(searchParams.get("organizationId"));
-  console.log('[organizationId]: ', organId)
-  console.log('[userId]: ' ,userId )
+  
+  const [isScheduleNow, setIsScheduleNow] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -41,184 +58,309 @@ function CreateMeetingContent() {
   });
   
   const [meetingCreated, setMeetingCreated] = useState(false);
-  const [meetingLink, setMeetingLink] = useState('');
-  const [meetingId, setMeetingId] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [createdMeetingId, setCreatedMeetingId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingMembers, setIsFetchingMembers] = useState(true);
+  const [error, setError] = useState('');
+  const [notifyMembers, setNotifyMembers] = useState(true);
+  const [memberEmails, setMemberEmails] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!organId) return;
+      
+      setIsFetchingMembers(true);
+      const query = `{ getOrganizationbyId(id: ${organId}) { owner { email } members { id user { id name email } } } }`;
+
+      try {
+        const result = await axios.post(
+          `${API_PREFIX}/graphql`,
+          { 'query': query },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            }
+          }
+        );
+        
+        const orgData: OrganizationData = result.data.data.getOrganizationbyId;
+        const emails: string[] = [];
+        
+        if (orgData.owner?.email) {
+          emails.push(orgData.owner.email);
+        }
+        
+        if (orgData.members && orgData.members.length > 0) {
+          orgData.members.forEach((member: Member) => {
+            if (member.user?.email) {
+              emails.push(member.user.email);
+            }
+          });
+        }
+        
+        setMemberEmails(emails);
+      } catch (error) {
+        console.error('[Error fetching members]: ', error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        setIsFetchingMembers(false);
+      }
+    };
+    
+    fetchMembers();
+  }, [organId]);
+
+  useEffect(() => {
+    if (isScheduleNow) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      
+      setFormData(prev => ({
+        ...prev,
+        date: `${year}-${month}-${day}`,
+        time: `${hours}:${minutes}`
+      }));
+    }
+  }, [isScheduleNow]);
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
-  };
-
-  const generateMeetingLink = () => {
-    // Generate dummy meeting data
-    const id = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const link = `https://smartmeet.com/join/${id}`;
-    
-    setMeetingId(id);
-    setMeetingLink(link);
-    
-    return link
+    if (error) setError('');
   };
 
   function back(){
-    router.push(`/create-meeting?userId=${userId}&organizationId=${organId}`);
+    router.push(`/dashboard?userId=${userId}&organizationId=${organId}`);
   }
 
-  const copyToClipboard = async () => {
+  const validateDateTime = () => {
+    if (!formData.date || !formData.time) {
+      setError('Please select both date and time for the meeting');
+      return false;
+    }
+
+    if (!isScheduleNow) {
+      const selectedDateTime = new Date(`${formData.date}T${formData.time}:00`);
+      const now = new Date();
+
+      if (selectedDateTime <= now) {
+        setError('Meeting time must be in the future. Please select a later date and time.');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const sendNotificationEmails = async (meetingId: string) => {
+    if (!notifyMembers || memberEmails.length === 0) return;
+
+    const meetingDateTime = new Date(`${formData.date}T${formData.time}:00`);
+    const meetingLink = `${window.location.origin}/join?meetingId=${meetingId}&organizationId=${organId}`;
+    
+    const emailContent = `
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #4F46E5;">Meeting Invitation</h2>
+            <p>You have been invited to a meeting:</p>
+            
+            <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #1F2937;">${formData.name}</h3>
+              ${formData.description ? `<p style="margin: 10px 0;"><strong>Description:</strong> ${formData.description}</p>` : ''}
+              <p style="margin: 10px 0;"><strong>Date:</strong> ${meetingDateTime.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}</p>
+              <p style="margin: 10px 0;"><strong>Time:</strong> ${formData.time}</p>
+              <p style="margin: 10px 0;"><strong>Duration:</strong> ${formData.meetingDuration} minutes</p>
+            </div>
+            
+            <div style="margin: 30px 0; text-align: center;">
+              <a href="${meetingLink}" 
+                 style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); 
+                        color: white; 
+                        padding: 12px 30px; 
+                        text-decoration: none; 
+                        border-radius: 8px; 
+                        display: inline-block;
+                        font-weight: bold;">
+                Join Meeting
+              </a>
+            </div>
+            
+            <p style="color: #6B7280; font-size: 14px;">Or copy and paste this link in your browser:</p>
+            <p style="background-color: #F9FAFB; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px;">
+              ${meetingLink}
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
+            
+            <p style="color: #6B7280; font-size: 12px; text-align: center;">
+              This is an automated message from SmartMeet. Please do not reply to this email.
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
     try {
-      await navigator.clipboard.writeText(meetingLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+      await axios.post(
+        `${API_PREFIX}/api/SendEmail`,
+        {
+          receivers: memberEmails,
+          content: emailContent,
+          time: meetingDateTime.toISOString()
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          }
+        }
+      );
+    } catch (error) {
+      console.error('[Error sending emails]: ', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    generateMeetingLink();
-    formData.meetingLink = generateMeetingLink();
-    formData.startTime=  new Date(`${formData.date}T${formData.time}:00`);
-    try{
-     const result = await axios.post(
-            "https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/CreateMeeting",
-            formData,
-            {
-              headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${localStorage.getItem("token")}`,
-                }
-              }
-          )
-        if (result.status ==201){
-          setMeetingCreated(true);
-        }
-    }catch(e){
-      // @ts-expect-error - Axios error object may not have proper type definitions, accessing message property for error handling
-      console.error('[Error]',e.message);
-      // @ts-expect-error - Axios error object may not have proper type definitions, accessing message property for user alert
-      alert(e.message);
+    setError('');
+
+    if (!validateDateTime()) {
+      return;
     }
 
+    setIsLoading(true);
+
+    formData.startTime = new Date(`${formData.date}T${formData.time}:00`);
+    formData.meetingLink = `${window.location.origin}/meeting`;
+
+    try {
+      const result = await axios.post(
+        `${API_PREFIX}/api/CreateMeeting`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          }
+        }
+      );
+      
+      if (result.status === 201) {
+        const meetingId = result.data.meetingId || result.data.id;
+        setCreatedMeetingId(meetingId);
+        await sendNotificationEmails(meetingId);
+        setMeetingCreated(true);
+      }
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        setError(e.response?.data?.message || 'Failed to create meeting. Please try again.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (isFetchingMembers) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-royal-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-onyx-gray">Loading organization details...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (meetingCreated) {
     return (
-      <div className="min-h-screen bg-alice-white flex items-center justify-center px-4">
-        {/* Background Elements */}
+      <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center px-4">
         <div className="absolute top-20 left-20 w-72 h-72 bg-royal-blue/5 rounded-full blur-3xl animate-float"></div>
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-deep-wine/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
 
         <div className="w-full max-w-2xl relative">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 card-shadow-hover text-center">
-            {/* Success Icon */}
-            <div className="w-20 h-20 bg-gradient-royal-wine rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check className="w-10 h-10 text-white" />
+          <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl p-12 card-shadow border border-white/50 text-center">
+            <div className="w-24 h-24 bg-gradient-to-br from-royal-blue to-deep-wine rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Check className="w-12 h-12 text-white" />
             </div>
 
             <h1 className="text-3xl font-bold text-rich-black mb-4">
-              Meeting Created Successfully! 
+              Meeting Created Successfully!
             </h1>
-            <p className="text-lg text-onyx-gray/80 mb-8">
-              Your meeting {formData.name} is ready. Share the link below with your participants.
+            <p className="text-lg text-onyx-gray/70 mb-8">
+              Your meeting <span className="font-semibold text-royal-blue">{formData.name}</span> has been scheduled
+              {notifyMembers && memberEmails.length > 0 && (
+                <span className="block mt-2 text-sm text-onyx-gray/60">
+                  Notification emails sent to {memberEmails.length} member{memberEmails.length !== 1 ? 's' : ''}
+                </span>
+              )}
             </p>
 
-            {/* Meeting Details */}
-            <div className="bg-alice-white rounded-2xl p-6 mb-8">
-              <div className="grid md:grid-cols-2 gap-6 text-left">
-                <div>
-                  <h3 className="font-semibold text-rich-black mb-2">Meeting Details</h3>
-                  <div className="space-y-2 text-sm text-onyx-gray">
-                    <div className="flex items-center">
-                      <Video className="w-4 h-4 mr-2 text-royal-blue" />
-                      <span>Meeting ID: {meetingId}</span>
+            <div className="bg-gradient-to-br from-alice-white to-white rounded-2xl p-6 mb-8 border border-gray-100">
+              <div className="grid gap-4 text-left">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-royal-blue/10 rounded-xl flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-royal-blue" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-onyx-gray/60">Date</p>
+                    <p className="font-semibold text-rich-black">
+                      {new Date(formData.date).toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-deep-wine/10 rounded-xl flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-deep-wine" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-onyx-gray/60">Time & Duration</p>
+                    <p className="font-semibold text-rich-black">
+                      {formData.time} ({formData.meetingDuration} minutes)
+                    </p>
+                  </div>
+                </div>
+
+                {formData.enableEngagement && (
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-green-600" />
                     </div>
-                    {formData.date && (
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-2 text-royal-blue" />
-                        <span>{new Date(formData.date).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                    {formData.time && (
-                      <div className="flex items-center">
-                        <Clock className="w-4 h-4 mr-2 text-royal-blue" />
-                        <span>{formData.time}</span>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-sm text-onyx-gray/60">Features</p>
+                      <p className="font-semibold text-rich-black">Engagement Tracking Enabled</p>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-rich-black mb-2">Features Enabled</h3>
-                  <div className="space-y-2 text-sm text-onyx-gray">
-                    {formData.enableEngagement && (
-                      <div className="flex items-center">
-                        <Zap className="w-4 h-4 mr-2 text-deep-wine" />
-                        <span>Engagement Tracking</span>
-                      </div>
-                    )}
-                    {formData.daily && (
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-2 text-deep-wine" />
-                        <span>Meet Daily</span>
-                      </div>
-                    )}
-                    {formData.weekly && (
-                      <div className="flex items-center">
-                        <Clock className="w-4 h-4 mr-2 text-deep-wine" />
-                        <span>Weekly</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Meeting Link */}
-            <div className="bg-gradient-to-r from-royal-blue/5 to-deep-wine/5 rounded-2xl p-6 mb-8">
-              <h3 className="font-semibold text-rich-black mb-4">Meeting Link</h3>
-              <div className="flex items-center space-x-3 bg-white rounded-xl p-4 border-2 border-royal-blue/20">
-                <input
-                  type="text"
-                  value={meetingLink}
-                  readOnly
-                  className="flex-1 bg-transparent text-onyx-gray font-mono text-sm outline-none"
-                />
-                <Button
-                  onClick={copyToClipboard}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${
-                    copied 
-                      ? 'bg-green-500 hover:bg-green-600 text-white' 
-                      : 'bg-royal-blue hover:bg-deep-wine text-white'
-                  }`}
-                >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                className="bg-gradient-to-r from-royal-blue to-deep-wine hover:from-deep-wine hover:to-royal-blue text-white px-8 py-3 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                onClick={() => window.location.href = '/meeting'}
-              >
-                <ExternalLink className="w-5 h-5 mr-2" />
-                Start Meeting Now
-              </Button>
-             <Button
-  variant="outline"
-  className="border-2 border-royal-blue text-royal-blue hover:bg-royal-blue hover:text-white px-8 py-3 rounded-xl font-semibold text-lg transition-all duration-200"
-  onClick={() => {
-    window.location.href = "/main";
-  }}
->
-  Back to Main page
-</Button>
-
-            </div>
+            <Button
+              className="bg-gradient-to-r from-royal-blue to-deep-wine hover:from-deep-wine hover:to-royal-blue text-white px-8 py-6 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              onClick={back}
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Back to Dashboard
+            </Button>
           </div>
         </div>
       </div>
@@ -226,16 +368,13 @@ function CreateMeetingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-alice-white">
-      {/* Background Elements */}
+    <div className="min-h-screen bg-gradient-to-br from-alice-white to-white">
       <div className="absolute top-20 left-20 w-72 h-72 bg-royal-blue/5 rounded-full blur-3xl animate-float"></div>
       <div className="absolute bottom-20 right-20 w-96 h-96 bg-deep-wine/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
 
-      {/* Top Navigation */}
-      <nav className="bg-white shadow-sm border-b border-alice-white relative z-10">
+      <nav className="bg-white/80 backdrop-blur-xl shadow-sm border-b border-alice-white/50 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo */}
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-royal-wine rounded-xl flex items-center justify-center">
                 <Video className="w-6 h-6 text-white" />
@@ -245,11 +384,11 @@ function CreateMeetingContent() {
               </span>
             </div>
 
-            {/* Back Button */}
             <Button
               variant="ghost"
               onClick={back}
               className="text-onyx-gray hover:text-royal-blue"
+              disabled={isLoading}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
@@ -258,23 +397,19 @@ function CreateMeetingContent() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="flex items-center justify-center px-4 py-12 relative">
         <div className="w-full max-w-2xl">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 card-shadow-hover">
-            {/* Header */}
+          <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl p-8 card-shadow border border-white/50">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-rich-black mb-4">
                 Create New Meeting
               </h1>
-              <p className="text-lg text-onyx-gray/80">
-                Set your meeting details and share the invite link instantly.
+              <p className="text-lg text-onyx-gray/70">
+                Set your meeting details and schedule it for your team
               </p>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Meeting Title */}
               <div>
                 <label className="block text-sm font-semibold text-rich-black mb-2">
                   Meeting Title *
@@ -286,10 +421,10 @@ function CreateMeetingContent() {
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   className="w-full px-4 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
-              {/* Description */}
               <div>
                 <label className="block text-sm font-semibold text-rich-black mb-2">
                   Description (Optional)
@@ -300,42 +435,72 @@ function CreateMeetingContent() {
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200 resize-none"
+                  disabled={isLoading}
                 />
               </div>
 
-              {/* Date and Time */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-rich-black mb-2">
-                    Date 
-                  </label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40" />
-                    <Input
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => handleInputChange('date', e.target.value)}
-                      className="pl-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
+              <div className="bg-gradient-to-br from-alice-white to-white rounded-2xl p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-rich-black">Schedule Time</h3>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isScheduleNow}
+                      onChange={(e) => setIsScheduleNow(e.target.checked)}
+                      className="w-4 h-4 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
+                      disabled={isLoading}
                     />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-rich-black mb-2">
-                    Time (Optional)
+                    <span className="text-sm font-medium text-rich-black">Start Now</span>
                   </label>
-                  <div className="relative">
-                    <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40" />
-                    <Input
-                      type="time"
-                      value={formData.time}
-                      onChange={(e) => handleInputChange('time', e.target.value)}
-                      className="pl-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
-                    />
-                  </div>
                 </div>
+
+                {!isScheduleNow && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-rich-black mb-2">
+                        Date *
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40 pointer-events-none" />
+                        <Input
+                          type="date"
+                          value={formData.date}
+                          onChange={(e) => handleInputChange('date', e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="pl-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-rich-black mb-2">
+                        Time *
+                      </label>
+                      <div className="relative">
+                        <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40 pointer-events-none" />
+                        <Input
+                          type="time"
+                          value={formData.time}
+                          onChange={(e) => handleInputChange('time', e.target.value)}
+                          className="pl-12 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isScheduleNow && (
+                  <div className="bg-royal-blue/5 rounded-xl p-4 border border-royal-blue/20">
+                    <p className="text-sm text-royal-blue font-medium">
+                      Meeting will start immediately after creation
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Duration */}
               <div>
                 <label className="block text-sm font-semibold text-rich-black mb-2">
                   Expected Duration (minutes)
@@ -344,6 +509,7 @@ function CreateMeetingContent() {
                   value={formData.meetingDuration}
                   onChange={(e) => handleInputChange('meetingDuration', e.target.value)}
                   className="w-full px-4 py-3 h-12 rounded-xl border-2 border-gray-200 focus:border-royal-blue focus:ring-2 focus:ring-royal-blue/20 transition-all duration-200 bg-white"
+                  disabled={isLoading}
                 >
                   <option value="15">15 minutes</option>
                   <option value="30">30 minutes</option>
@@ -354,8 +520,7 @@ function CreateMeetingContent() {
                 </select>
               </div>
 
-              {/* Meeting Options */}
-              <div className="bg-alice-white rounded-2xl p-6">
+              <div className="bg-gradient-to-br from-alice-white to-white rounded-2xl p-6 border border-gray-100">
                 <h3 className="text-lg font-semibold text-rich-black mb-4">Meeting Options</h3>
                 <div className="space-y-4">
                   <label className="flex items-center space-x-3 cursor-pointer">
@@ -364,6 +529,7 @@ function CreateMeetingContent() {
                       checked={formData.enableEngagement}
                       onChange={(e) => handleInputChange('enableEngagement', e.target.checked)}
                       className="w-5 h-5 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
+                      disabled={isLoading}
                     />
                     <div>
                       <span className="font-medium text-rich-black">Enable Engagement Tracking</span>
@@ -371,42 +537,55 @@ function CreateMeetingContent() {
                     </div>
                   </label>
 
-                  <label className="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.weekly}
-                      onChange={(e) => handleInputChange('weekly', e.target.checked)}
-                      className="w-5 h-5 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
-                    />
-                    <div>
-                      <span className="font-medium text-rich-black">Weekly</span>
-                      <p className="text-sm text-onyx-gray/60">Meeting will be on weekly basis</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.daily}
-                      onChange={(e) => handleInputChange('daily', e.target.checked)}
-                      className="w-5 h-5 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
-                    />
-                    <div>
-                      <span className="font-medium text-rich-black">Daily</span>
-                      <p className="text-sm text-onyx-gray/60">Meet on Daily basis</p>
-                    </div>
-                  </label>
+                  {!isScheduleNow && (
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notifyMembers}
+                        onChange={(e) => setNotifyMembers(e.target.checked)}
+                        className="w-5 h-5 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
+                        disabled={isLoading}
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-rich-black">Notify Organization Members</span>
+                          {memberEmails.length > 0 && (
+                            <span className="flex items-center text-xs text-onyx-gray/60 bg-alice-white px-2 py-1 rounded-full">
+                              <Users className="w-3 h-3 mr-1" />
+                              {memberEmails.length} member{memberEmails.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-onyx-gray/60">Send email notifications with meeting link to all members</p>
+                      </div>
+                    </label>
+                  )}
                 </div>
               </div>
 
-              {/* Submit Button */}
+                {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
+
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-royal-blue to-deep-wine hover:from-deep-wine hover:to-royal-blue text-white py-4 h-14 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                disabled={!formData.name.trim()}
+                disabled={!formData.name.trim() || isLoading}
+                className="w-full bg-gradient-to-r from-royal-blue to-deep-wine hover:from-deep-wine hover:to-royal-blue text-white py-4 h-14 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
               >
-                <Video className="w-5 h-5 mr-2" />
-                Generate Meeting Link
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Creating Meeting...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <Video className="w-5 h-5" />
+                    {isScheduleNow ? 'Create & Start Meeting' : 'Create Meeting'}
+                  </span>
+                )}
               </Button>
             </form>
           </div>
@@ -416,11 +595,10 @@ function CreateMeetingContent() {
   );
 }
 
-// Main export with Suspense wrapper
 export default function CreateMeeting() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-alice-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-royal-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-onyx-gray">Loading...</p>

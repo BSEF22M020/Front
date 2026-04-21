@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import axios  from 'axios';
 import { error } from 'console';
 import { useRouter } from 'next/navigation'
+import { API_PREFIX } from '@/constants/api';
 
 export default function JoinOrganization() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function JoinOrganization() {
 
   try {
     const result= await axios.post(
-      "https://handsome-demetria-goodmeet-eb9fb43d.koyeb.app/api/JoinOrganization",
+      `${API_PREFIX}/api/JoinOrganization`,
       formData,
       {
         headers: {
@@ -123,13 +124,6 @@ export default function JoinOrganization() {
           </form>
 
           {/* Footer */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-onyx-gray/60">
-              By continuing, you agree to our{' '}
-              <a href="#" className="text-royal-blue hover:text-deep-wine font-medium">Terms</a> and{' '}
-              <a href="#" className="text-royal-blue hover:text-deep-wine font-medium">Privacy Policy</a>
-            </p>
-          </div>
         </div>
       </div>
     </div>

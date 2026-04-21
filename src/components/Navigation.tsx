@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react';
 import { Video, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from  '../app/context/AuthContext';
+import { log } from 'console';
 
 export default function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { logout,isLoggedIn } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,15 +48,26 @@ export default function Navigation() {
             <a href="#contact" className="text-onyx-gray hover:text-royal-blue transition-colors duration-200 font-medium">
              Contact us
             </a>
-            <a href="/auth" className="text-onyx-gray hover:text-royal-blue transition-colors duration-200 font-medium">
-              Login
-            </a>
+           {isLoggedIn ? ( <a
+    href="#"
+    onClick={(e) => {
+      e.preventDefault()
+      logout()
+      window.location.href = '/auth'
+    }}
+    className="text-onyx-gray hover:text-royal-blue transition-colors duration-200 font-medium"
+  >
+    Logout
+  </a>):(<a href="/auth" className="text-onyx-gray hover:text-royal-blue transition-colors duration-200 font-medium">
+                Login
+              </a>)}
+              {isLoggedIn &&(
             <Button 
               className="bg-royal-blue hover:bg-deep-wine text-white px-6 py-2 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl"
               onClick={() => window.location.href = '/main'}
             >
               My Organization
-            </Button>
+            </Button>)}
           </div>
 
           {/* Mobile Menu Button */}

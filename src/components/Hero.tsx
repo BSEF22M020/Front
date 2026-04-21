@@ -2,8 +2,11 @@
 
 import { ArrowRight, Play, Users, ChartBar as BarChart3, FileText, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from  '../app/context/AuthContext';
+
 
 export default function Hero() {
+  const { isLoggedIn } = useAuth();
   return (
     <section className="relative pt-24 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Background Elements */}
@@ -30,19 +33,19 @@ export default function Hero() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button 
                 className="bg-royal-blue hover:bg-deep-wine text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl group"
-                onClick={() => window.location.href = '/main'}
+                onClick={() => isLoggedIn ? window.location.href = '/main' : window.location.href = '/auth'}
               >
                 Start Collaboration
                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Button 
+             { !isLoggedIn &&( <Button 
                 variant="outline" 
                 onClick={() => window.location.href = '/auth'}
                 className="border-2 border-deep-wine text-deep-wine hover:bg-deep-wine hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105"
               >
                 <LogIn className="mr-2 w-5 h-5" />
                 Login
-              </Button>
+              </Button>)}
             </div>
 
             {/* Stats */}

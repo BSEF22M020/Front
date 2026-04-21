@@ -1,13 +1,38 @@
 'use client';
 
-import { BarChart3, FileText, Zap, Shield, Users, Clock, UserPlus, Building2, UsersRound, Calendar, Eye, FileBarChart } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { BarChart3, FileText, Zap, Shield, Users, Clock, UserPlus, Building2, UsersRound, Calendar, Eye, FileBarChart, CheckCircle2, Send } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { API_PREFIX } from '@/constants/api';
+
+const submitResponse = async (data: { name: string; email: string; message: string }) => {
+  try {
+    const response = await axios.post(
+      `${API_PREFIX}/api/getFeedback`,
+      {
+        name: data.name,
+        email: data.email,
+        response: data.message,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error submitting contact form:', error);
+    throw error;
+  }
+};
 
 const features = [
   {
     icon: BarChart3,
-    title: 'Real-time Analytics',
-    description: 'Track participant engagement and attention levels with live dashboards and instant insights.',
+    title: 'High Accuracy Engagement Tracking',
+    description: 'Track participant engagement and attention levels with high accuracy.',
   },
   {
     icon: FileText,
@@ -27,7 +52,7 @@ const features = [
   {
     icon: Users,
     title: 'Advanced Collaboration',
-    description: 'Breakout rooms, screen sharing, whiteboard, and recording capabilities.',
+    description: 'In-meeting chat, Screen sharing enhancing seamless communication among participants.',
   },
   {
     icon: Clock,
@@ -45,8 +70,17 @@ const workflowSteps = [
   { step: 6, title: "Get Reports", icon: FileBarChart, description: "Comprehensive attentiveness insights" }
 ];
 
+type FormState = 'idle' | 'submitting' | 'exiting' | 'success' | 'entering';
+
 export default function Features() {
   const [currentStep, setCurrentStep] = useState(0);
+
+  // Form state
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [formState, setFormState] = useState<FormState>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -54,6 +88,43 @@ export default function Features() {
     }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    setError(null);
+    setFormState('submitting');
+
+    try {
+      await submitResponse({ name, email, message });
+
+      // Trigger exit animation
+      setFormState('exiting');
+
+      // After fade-out completes, show success
+      setTimeout(() => {
+        setFormState('success');
+      }, 500);
+    } catch (err) {
+      setFormState('idle');
+      setError('Something went wrong. Please try again.');
+    }
+  };
+
+  const handleReset = () => {
+    // Trigger entering animation for fresh form
+    setFormState('entering');
+    setName('');
+    setEmail('');
+    setMessage('');
+    setError(null);
+
+    setTimeout(() => {
+      setFormState('idle');
+    }, 50); // tiny tick to kick the CSS transition
+  };
 
   return (
     <section id="howwork" className="py-24 px-4 sm:px-6 lg:px-8 relative bg-gradient-to-b from-gray-50 to-white">
@@ -67,14 +138,14 @@ export default function Features() {
         {/* How It Works Carousel */}
         <div className="mb-32">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4 text-center">
-            How It <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">Works</span>
+            How It <span className="text-gradient">Works</span>
           </h2>
           <p className="text-center text-gray-600 mb-16 text-lg">Follow these simple steps to get started</p>
-          
+
           <div className="relative max-w-6xl mx-auto">
             {/* Progress Bar */}
             <div className="absolute top-24 left-0 right-0 h-1 bg-gray-200 hidden lg:block">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-blue-500 to-blue-700 transition-all duration-500"
                 style={{ width: `${((currentStep + 1) / workflowSteps.length) * 100}%` }}
               ></div>
@@ -82,38 +153,26 @@ export default function Features() {
 
             {/* Steps Container */}
             <div className="relative overflow-hidden">
-              <div 
+              <div
                 className="flex transition-transform duration-700 ease-in-out"
                 style={{ transform: `translateX(-${currentStep * 100}%)` }}
               >
                 {workflowSteps.map((item, index) => {
                   const Icon = item.icon;
                   return (
-                    <div
-                      key={index}
-                      className="w-full flex-shrink-0 px-4"
-                    >
+                    <div key={index} className="w-full flex-shrink-0 px-4">
                       <div className="max-w-2xl mx-auto text-center">
-                        {/* Icon */}
                         <div className="relative inline-block mb-8">
                           <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-3xl blur-2xl opacity-30"></div>
                           <div className="relative bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl p-12">
                             <Icon className="w-24 h-24 text-blue-600 mx-auto" strokeWidth={1.5} />
                           </div>
                         </div>
-
-                        {/* Step Number */}
                         <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full text-white font-bold text-lg mb-6">
                           {item.step}
                         </div>
-
-                        {/* Content */}
-                        <h3 className="text-3xl font-bold text-gray-900 mb-4">
-                          {item.title}
-                        </h3>
-                        <p className="text-xl text-gray-600 leading-relaxed">
-                          {item.description}
-                        </p>
+                        <h3 className="text-3xl font-bold text-gray-900 mb-4">{item.title}</h3>
+                        <p className="text-xl text-gray-600 leading-relaxed">{item.description}</p>
                       </div>
                     </div>
                   );
@@ -128,8 +187,8 @@ export default function Features() {
                   key={index}
                   onClick={() => setCurrentStep(index)}
                   className={`transition-all duration-300 rounded-full ${
-                    index === currentStep 
-                      ? 'w-12 h-3 bg-gradient-to-r from-blue-600 to-blue-800' 
+                    index === currentStep
+                      ? 'w-12 h-3 bg-gradient-to-r from-blue-600 to-blue-800'
                       : 'w-3 h-3 bg-gray-300 hover:bg-gray-400'
                   }`}
                   aria-label={`Go to step ${index + 1}`}
@@ -137,7 +196,6 @@ export default function Features() {
               ))}
             </div>
 
-            {/* Navigation Arrows */}
             <button
               onClick={() => setCurrentStep((prev) => (prev - 1 + workflowSteps.length) % workflowSteps.length)}
               className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 lg:-translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:shadow-xl transition-all duration-300 hover:scale-110"
@@ -161,47 +219,34 @@ export default function Features() {
 
         {/* Features Grid */}
         <div className="mb-20" id="features">
-          <h3 className="text-3xl font-bold text-gray-900 text-center mb-12">
-            Powerful Features for <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">Modern Teams</span>
-          </h3>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h3 className="text-4xl font-bold text-gray-900 mb-4">
+              Everything You Need for{' '}
+              <span className="text-gradient bg-clip-text text-transparent">Better Meetings</span>
+            </h3>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+              Comprehensive post-meeting analytics and actionable insights delivered after every session
+            </p>
+          </div>
+
+          <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-8">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
                 <div
                   key={index}
-                  className="group relative"
+                  className="relative bg-white rounded-2xl p-8 border border-gray-100 shadow-lg"
                 >
-                  {/* Glow effect on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-blue-700/20 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-                  
-                  <div className="relative bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100 group-hover:border-blue-200 overflow-hidden">
-                    {/* Animated background gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                    
-                    {/* Content */}
-                    <div className="relative z-10">
-                      {/* Icon with animated background */}
-                      <div className="relative mb-6 inline-block">
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
-                        <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500/10 to-blue-700/10 rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                          <Icon className="w-10 h-10 text-blue-600 group-hover:text-blue-700 transition-colors duration-300" strokeWidth={1.5} />
-                        </div>
+                  <div className="flex items-start gap-6">
+                    <div className="flex-shrink-0">
+                      <div className="w-14 h-14 rounded-xl bg-royal-blue flex items-center justify-center shadow-lg">
+                        <Icon className="w-7 h-7 text-white" strokeWidth={2} />
                       </div>
-                      
-                      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-blue-800 group-hover:bg-clip-text transition-all duration-300">
-                        {feature.title}
-                      </h3>
-                      <p className="text-gray-600 leading-relaxed">
-                        {feature.description}
-                      </p>
                     </div>
-                    
-                    {/* Shimmer effect */}
-                    <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                    
-                    {/* Corner accent */}
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div className="flex-1">
+                      <h4 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h4>
+                      <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                    </div>
                   </div>
                 </div>
               );
@@ -211,12 +256,10 @@ export default function Features() {
 
         {/* Contact CTA */}
         <div className="text-center" id="contact">
-          <div className="relative bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-12 lg:p-16 shadow-2xl max-w-4xl mx-auto overflow-hidden group">
-            {/* Animated background elements */}
+          <div className="relative bg-royal-blue rounded-3xl p-12 lg:p-16 shadow-2xl max-w-4xl mx-auto overflow-hidden group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
             <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/5 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
-            
-            {/* Content */}
+
             <div className="relative z-10">
               <h3 className="text-4xl font-bold text-white mb-4 drop-shadow-lg">
                 Let us Transform Your Meetings Together
@@ -224,30 +267,141 @@ export default function Features() {
               <p className="text-lg text-white/90 mb-10 max-w-2xl mx-auto leading-relaxed">
                 Have questions? Want a demo? Our team is ready to help you get started.
               </p>
-              
-              {/* Contact Form */}
-              <div className="max-w-xl mx-auto bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
-                <div className="grid gap-4">
-                  <input
-                    type="text"
-                    placeholder="Your Name"
-                    className="w-full px-6 py-4 rounded-xl bg-white/95 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email Address"
-                    className="w-full px-6 py-4 rounded-xl bg-white/95 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200"
-                  />
-                  <textarea
-                    placeholder="Tell us about your requirements..."
-                    rows={4}
-                    className="w-full px-6 py-4 rounded-xl bg-white/95 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 resize-none"
-                  ></textarea>
-                  <button className="w-full bg-white text-blue-600 px-8 py-5 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-white/50 relative overflow-hidden group/btn">
-                    <span className="relative z-10">Send Message</span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-blue-800/10 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></div>
+
+              {/* Form / Success panel — fixed min-height to avoid layout jump */}
+              <div className="max-w-xl mx-auto" style={{ minHeight: '340px' }}>
+
+                {/* ── FORM (idle | submitting | exiting | entering) ── */}
+                <div
+                  className="backdrop-blur-md rounded-2xl p-8 border border-white/20 transition-all duration-500"
+                  style={{
+                    opacity: formState === 'exiting' || formState === 'success' ? 0 : 1,
+                    transform:
+                      formState === 'exiting' || formState === 'success'
+                        ? 'translateY(-16px) scale(0.97)'
+                        : formState === 'entering'
+                        ? 'translateY(16px) scale(0.97)'
+                        : 'translateY(0) scale(1)',
+                    pointerEvents: formState === 'success' ? 'none' : 'auto',
+                    position: formState === 'success' ? 'absolute' : 'relative',
+                    width: formState === 'success' ? '100%' : undefined,
+                    left: formState === 'success' ? 0 : undefined,
+                  }}
+                >
+                  <div className="grid gap-4">
+                    <input
+                      type="text"
+                      placeholder="Your Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      disabled={formState === 'submitting'}
+                      className="w-full px-6 py-4 rounded-xl bg-white/95 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 disabled:opacity-60"
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email Address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={formState === 'submitting'}
+                      className="w-full px-6 py-4 rounded-xl bg-white/95 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 disabled:opacity-60"
+                    />
+                    <textarea
+                      placeholder="Tell us about your requirements..."
+                      rows={4}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      disabled={formState === 'submitting'}
+                      className="w-full px-6 py-4 rounded-xl bg-white/95 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 resize-none disabled:opacity-60"
+                    />
+
+                    {error && (
+                      <p className="text-red-200 text-sm text-left -mt-1 pl-1">{error}</p>
+                    )}
+
+                    <button
+                      onClick={handleSubmit}
+                      disabled={formState === 'submitting'}
+                      className="w-full bg-black text-white px-8 py-5 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-blue-500/50 relative overflow-hidden group/btn disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-3"
+                    >
+                      {formState === 'submitting' ? (
+                        <>
+                          <svg
+                            className="w-5 h-5 animate-spin"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                            />
+                          </svg>
+                          <span className="relative z-10">Sending…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-5 h-5" />
+                          <span className="relative z-10">Send Message</span>
+                        </>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-700/20 to-blue-900/20 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── SUCCESS STATE ── */}
+                <div
+                  className="flex flex-col items-center justify-center gap-6 transition-all duration-500"
+                  style={{
+                    opacity: formState === 'success' ? 1 : 0,
+                    transform: formState === 'success' ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.96)',
+                    pointerEvents: formState === 'success' ? 'auto' : 'none',
+                    position: formState === 'success' ? 'relative' : 'absolute',
+                    width: '100%',
+                    transitionDelay: formState === 'success' ? '200ms' : '0ms',
+                  }}
+                >
+                  {/* Animated check circle */}
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-green-400/30 rounded-full blur-2xl scale-150"></div>
+                    <div className="relative w-24 h-24 bg-white/15 border-2 border-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
+                      <CheckCircle2
+                        className="w-12 h-12 text-green-300"
+                        strokeWidth={1.5}
+                        style={{
+                          filter: 'drop-shadow(0 0 8px rgba(134,239,172,0.6))',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <h4 className="text-2xl font-bold text-white mb-2">Message Sent!</h4>
+                    <p className="text-white/80 text-base leading-relaxed max-w-sm">
+                      Thanks for reaching out. Our team will get back to you shortly.
+                    </p>
+                  </div>
+
+                  {/* Submit another response */}
+                  <button
+                    onClick={handleReset}
+                    className="mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-white/30 bg-white/10 text-white/90 text-sm font-medium hover:bg-white/20 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Submit another response
                   </button>
                 </div>
+
               </div>
             </div>
           </div>
