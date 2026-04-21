@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Video, Mic, MicOff, VideoOff, Settings, Loader2, AlertCircle, Clock, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ interface MeetingData {
   };
 }
 
-export default function JoinMeeting() {
+function JoinMeetingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isLoggedIn } = useAuth();
@@ -512,5 +512,20 @@ export default function JoinMeeting() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function JoinMeeting() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-royal-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-onyx-gray">Loading meeting...</p>
+        </div>
+      </div>
+    }>
+      <JoinMeetingContent />
+    </Suspense>
   );
 }
