@@ -546,7 +546,7 @@ function findStatus(startTime: string | Date | number, duration: number): string
                                   }
                                   onClick={() => {
                                     if (findStatus(meet.startTime, meet.meetingDuration) === 'upcoming') {
-                                      window.location.href = `/create-meeting?edit=${meet.id}`;
+                                      window.location.href = `/create-meeting?edit=${meet.id}&userId=${userId}&organizationId=${organId}`;
                                     } else {
                                       window.location.href = `/reports/${meet.id}`;
                                     }

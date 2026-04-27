@@ -7,7 +7,7 @@ import { Chat } from "stream-chat-react"
 require( "stream-chat-react/dist/css/v2/index.css")
 import { API_PREFIX } from "@/constants/api";
 import { Loader2 } from "lucide-react";
-import useFaceMesh from "@/mediapipe/FaceMesh";
+
 
 
 export const STREAM_API_KEY = process.env.NEXT_PUBLIC_STREAM_KEY
