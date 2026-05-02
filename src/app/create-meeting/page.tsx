@@ -16,7 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from 'axios';
-import {API_PREFIX} from '@/constants/api';
+import { API_PREFIX } from '@/constants/api';
+import { fromZonedTime } from 'date-fns-tz';
 
 interface Member {
   id: number;
@@ -40,42 +41,50 @@ function CreateMeetingContent() {
 
   const userId = Number(searchParams.get("userId"));
   const organId = Number(searchParams.get("organizationId"));
-  
+  const editId = searchParams.get("edit"); // null if creating, meeting id if editing
+  const isEditing = !!editId;
+
   const [isScheduleNow, setIsScheduleNow] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    date:'',
-    time:'',
+    date: '',
+    time: '',
     meetingDuration: '30',
-    enableEngagement: true,
-    daily:false,
-    weekly:false,
-    hostId:userId,
-    meetingLink: '', 
-    organizationId:organId,
-    startTime:new Date(),
+    EnableEngagement: true,
+    daily: false,
+    weekly: false,
+    hostId: userId,
+    meetingLink: '',
+    organizationId: organId,
+    startTime: new Date(),
+    Engagment: 0,
   });
-  
+
   const [meetingCreated, setMeetingCreated] = useState(false);
   const [createdMeetingId, setCreatedMeetingId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMembers, setIsFetchingMembers] = useState(true);
+  const [isFetchingMeeting, setIsFetchingMeeting] = useState(isEditing);
   const [error, setError] = useState('');
   const [notifyMembers, setNotifyMembers] = useState(true);
   const [memberEmails, setMemberEmails] = useState<string[]>([]);
 
+  // Fetch organization members
   useEffect(() => {
     const fetchMembers = async () => {
-      if (!organId) return;
-      
+      if (!organId) {
+        setIsFetchingMembers(false);
+        return;
+      }
+
       setIsFetchingMembers(true);
       const query = `{ getOrganizationbyId(id: ${organId}) { owner { email } members { id user { id name email } } } }`;
 
       try {
         const result = await axios.post(
           `${API_PREFIX}/graphql`,
-          { 'query': query },
+          { query },
           {
             headers: {
               "Content-Type": "application/json",
@@ -83,14 +92,14 @@ function CreateMeetingContent() {
             }
           }
         );
-        
+
         const orgData: OrganizationData = result.data.data.getOrganizationbyId;
         const emails: string[] = [];
-        
+
         if (orgData.owner?.email) {
           emails.push(orgData.owner.email);
         }
-        
+
         if (orgData.members && orgData.members.length > 0) {
           orgData.members.forEach((member: Member) => {
             if (member.user?.email) {
@@ -98,7 +107,7 @@ function CreateMeetingContent() {
             }
           });
         }
-        
+
         setMemberEmails(emails);
       } catch (error) {
         console.error('[Error fetching members]: ', error instanceof Error ? error.message : 'Unknown error');
@@ -106,36 +115,73 @@ function CreateMeetingContent() {
         setIsFetchingMembers(false);
       }
     };
-    
+
     fetchMembers();
   }, [organId]);
 
+  // If editing, fetch existing meeting and prefill form
+  useEffect(() => {
+    if (!editId) return;
+
+    const fetchMeeting = async () => {
+      setIsFetchingMeeting(true);
+      try {
+        const query = `{ getMeetingById(id: ${editId}) { id name description startTime meetingDuration EnableEngagement daily weekly Engagment } }`;
+        const result = await axios.post(
+          `${API_PREFIX}/graphql`,
+          { query },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            }
+          }
+        );
+
+        const meet = result.data.data.getMeetingById;
+        const date = new Date(Number(meet.startTime));
+
+        setFormData(prev => ({
+          ...prev,
+          name: meet.name || '',
+          description: meet.description || '',
+          date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+          time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+          meetingDuration: String(meet.meetingDuration),
+          EnableEngagement: meet.EnableEngagement,
+          daily: meet.daily,
+          weekly: meet.weekly,
+          Engagment: meet.Engagment || 0,
+        }));
+      } catch (e) {
+        console.error('[Error fetching meeting]: ', e);
+        setError('Failed to load meeting details.');
+      } finally {
+        setIsFetchingMeeting(false);
+      }
+    };
+
+    fetchMeeting();
+  }, [editId]);
+
+  // Schedule now — auto fill current date/time
   useEffect(() => {
     if (isScheduleNow) {
       const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      
       setFormData(prev => ({
         ...prev,
-        date: `${year}-${month}-${day}`,
-        time: `${hours}:${minutes}`
+        date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
       }));
     }
   }, [isScheduleNow]);
 
   const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => ({ ...prev, [field]: value }));
     if (error) setError('');
   };
 
-  function back(){
+  function back() {
     router.push(`/dashboard?userId=${userId}&organizationId=${organId}`);
   }
 
@@ -163,50 +209,27 @@ function CreateMeetingContent() {
 
     const meetingDateTime = new Date(`${formData.date}T${formData.time}:00`);
     const meetingLink = `${window.location.origin}/join?meetingId=${meetingId}&organizationId=${organId}`;
-    
+
     const emailContent = `
       <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #4F46E5;">Meeting Invitation</h2>
             <p>You have been invited to a meeting:</p>
-            
             <div style="background-color: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
               <h3 style="margin-top: 0; color: #1F2937;">${formData.name}</h3>
               ${formData.description ? `<p style="margin: 10px 0;"><strong>Description:</strong> ${formData.description}</p>` : ''}
-              <p style="margin: 10px 0;"><strong>Date:</strong> ${meetingDateTime.toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}</p>
+              <p style="margin: 10px 0;"><strong>Date:</strong> ${meetingDateTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
               <p style="margin: 10px 0;"><strong>Time:</strong> ${formData.time}</p>
               <p style="margin: 10px 0;"><strong>Duration:</strong> ${formData.meetingDuration} minutes</p>
             </div>
-            
             <div style="margin: 30px 0; text-align: center;">
-              <a href="${meetingLink}" 
-                 style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); 
-                        color: white; 
-                        padding: 12px 30px; 
-                        text-decoration: none; 
-                        border-radius: 8px; 
-                        display: inline-block;
-                        font-weight: bold;">
-                Join Meeting
-              </a>
+              <a href="${meetingLink}" style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">Join Meeting</a>
             </div>
-            
-            <p style="color: #6B7280; font-size: 14px;">Or copy and paste this link in your browser:</p>
-            <p style="background-color: #F9FAFB; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px;">
-              ${meetingLink}
-            </p>
-            
+            <p style="color: #6B7280; font-size: 14px;">Or copy and paste this link:</p>
+            <p style="background-color: #F9FAFB; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px;">${meetingLink}</p>
             <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
-            
-            <p style="color: #6B7280; font-size: 12px; text-align: center;">
-              This is an automated message from SmartMeet. Please do not reply to this email.
-            </p>
+            <p style="color: #6B7280; font-size: 12px; text-align: center;">This is an automated message from SmartMeet.</p>
           </div>
         </body>
       </html>
@@ -236,36 +259,58 @@ function CreateMeetingContent() {
     e.preventDefault();
     setError('');
 
-    if (!validateDateTime()) {
-      return;
-    }
+    if (!validateDateTime()) return;
 
     setIsLoading(true);
 
-    formData.startTime = new Date(`${formData.date}T${formData.time}:00`);
-    formData.meetingLink = `${window.location.origin}/meeting`;
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const startTime = fromZonedTime(`${formData.date}T${formData.time}:00`, userTimezone);
+
+    const payload = {
+      ...formData,
+      id: isEditing ? Number(editId) : undefined,
+      startTime,
+      meetingLink: `${window.location.origin}/meeting`,
+      meetingDuration: Number(formData.meetingDuration),
+      hostId: userId,
+      organizationId: organId,
+    };
 
     try {
-      const result = await axios.post(
-        `${API_PREFIX}/api/CreateMeeting`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+      if (isEditing) {
+        await axios.put(
+          `${API_PREFIX}/api/UpdateMeeting`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            }
           }
+        );
+        back();
+      } else {
+        const result = await axios.post(
+          `${API_PREFIX}/api/CreateMeeting`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            }
+          }
+        );
+
+        if (result.status === 201) {
+          const meetingId = result.data.meetingId || result.data.id;
+          setCreatedMeetingId(meetingId);
+          await sendNotificationEmails(meetingId);
+          setMeetingCreated(true);
         }
-      );
-      
-      if (result.status === 201) {
-        const meetingId = result.data.meetingId || result.data.id;
-        setCreatedMeetingId(meetingId);
-        await sendNotificationEmails(meetingId);
-        setMeetingCreated(true);
       }
     } catch (e) {
       if (axios.isAxiosError(e)) {
-        setError(e.response?.data?.message || 'Failed to create meeting. Please try again.');
+        setError(e.response?.data?.message || 'Failed to save meeting. Please try again.');
       } else {
         setError('An unexpected error occurred. Please try again.');
       }
@@ -274,12 +319,14 @@ function CreateMeetingContent() {
     }
   };
 
-  if (isFetchingMembers) {
+  if (isFetchingMembers || isFetchingMeeting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-alice-white to-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-royal-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-onyx-gray">Loading organization details...</p>
+          <p className="text-onyx-gray">
+            {isFetchingMeeting ? 'Loading meeting details...' : 'Loading organization details...'}
+          </p>
         </div>
       </div>
     );
@@ -297,9 +344,7 @@ function CreateMeetingContent() {
               <Check className="w-12 h-12 text-white" />
             </div>
 
-            <h1 className="text-3xl font-bold text-rich-black mb-4">
-              Meeting Created Successfully!
-            </h1>
+            <h1 className="text-3xl font-bold text-rich-black mb-4">Meeting Created Successfully!</h1>
             <p className="text-lg text-onyx-gray/70 mb-8">
               Your meeting <span className="font-semibold text-royal-blue">{formData.name}</span> has been scheduled
               {notifyMembers && memberEmails.length > 0 && (
@@ -318,12 +363,7 @@ function CreateMeetingContent() {
                   <div>
                     <p className="text-sm text-onyx-gray/60">Date</p>
                     <p className="font-semibold text-rich-black">
-                      {new Date(formData.date).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+                      {new Date(formData.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     </p>
                   </div>
                 </div>
@@ -334,13 +374,11 @@ function CreateMeetingContent() {
                   </div>
                   <div>
                     <p className="text-sm text-onyx-gray/60">Time & Duration</p>
-                    <p className="font-semibold text-rich-black">
-                      {formData.time} ({formData.meetingDuration} minutes)
-                    </p>
+                    <p className="font-semibold text-rich-black">{formData.time} ({formData.meetingDuration} minutes)</p>
                   </div>
                 </div>
 
-                {formData.enableEngagement && (
+                {formData.EnableEngagement && (
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
                       <Zap className="w-5 h-5 text-green-600" />
@@ -402,18 +440,16 @@ function CreateMeetingContent() {
           <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl p-8 card-shadow border border-white/50">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-rich-black mb-4">
-                Create New Meeting
+                {isEditing ? 'Edit Meeting' : 'Create New Meeting'}
               </h1>
               <p className="text-lg text-onyx-gray/70">
-                Set your meeting details and schedule it for your team
+                {isEditing ? 'Update your meeting details' : 'Set your meeting details and schedule it for your team'}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-rich-black mb-2">
-                  Meeting Title *
-                </label>
+                <label className="block text-sm font-semibold text-rich-black mb-2">Meeting Title *</label>
                 <Input
                   type="text"
                   placeholder="e.g., Weekly Team Standup"
@@ -426,9 +462,7 @@ function CreateMeetingContent() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-rich-black mb-2">
-                  Description (Optional)
-                </label>
+                <label className="block text-sm font-semibold text-rich-black mb-2">Description (Optional)</label>
                 <textarea
                   placeholder="Brief description of the meeting agenda..."
                   value={formData.description}
@@ -442,24 +476,24 @@ function CreateMeetingContent() {
               <div className="bg-gradient-to-br from-alice-white to-white rounded-2xl p-6 border border-gray-100">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-rich-black">Schedule Time</h3>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isScheduleNow}
-                      onChange={(e) => setIsScheduleNow(e.target.checked)}
-                      className="w-4 h-4 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
-                      disabled={isLoading}
-                    />
-                    <span className="text-sm font-medium text-rich-black">Start Now</span>
-                  </label>
+                  {!isEditing && (
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isScheduleNow}
+                        onChange={(e) => setIsScheduleNow(e.target.checked)}
+                        className="w-4 h-4 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
+                        disabled={isLoading}
+                      />
+                      <span className="text-sm font-medium text-rich-black">Start Now</span>
+                    </label>
+                  )}
                 </div>
 
                 {!isScheduleNow && (
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-rich-black mb-2">
-                        Date *
-                      </label>
+                      <label className="block text-sm font-semibold text-rich-black mb-2">Date *</label>
                       <div className="relative">
                         <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40 pointer-events-none" />
                         <Input
@@ -474,9 +508,7 @@ function CreateMeetingContent() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-rich-black mb-2">
-                        Time *
-                      </label>
+                      <label className="block text-sm font-semibold text-rich-black mb-2">Time *</label>
                       <div className="relative">
                         <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-onyx-gray/40 pointer-events-none" />
                         <Input
@@ -494,17 +526,13 @@ function CreateMeetingContent() {
 
                 {isScheduleNow && (
                   <div className="bg-royal-blue/5 rounded-xl p-4 border border-royal-blue/20">
-                    <p className="text-sm text-royal-blue font-medium">
-                      Meeting will start immediately after creation
-                    </p>
+                    <p className="text-sm text-royal-blue font-medium">Meeting will start immediately after creation</p>
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-rich-black mb-2">
-                  Expected Duration (minutes)
-                </label>
+                <label className="block text-sm font-semibold text-rich-black mb-2">Expected Duration (minutes)</label>
                 <select
                   value={formData.meetingDuration}
                   onChange={(e) => handleInputChange('meetingDuration', e.target.value)}
@@ -526,8 +554,8 @@ function CreateMeetingContent() {
                   <label className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={formData.enableEngagement}
-                      onChange={(e) => handleInputChange('enableEngagement', e.target.checked)}
+                      checked={formData.EnableEngagement}
+                      onChange={(e) => handleInputChange('EnableEngagement', e.target.checked)}
                       className="w-5 h-5 text-royal-blue border-2 border-gray-300 rounded focus:ring-royal-blue focus:ring-2"
                       disabled={isLoading}
                     />
@@ -537,7 +565,7 @@ function CreateMeetingContent() {
                     </div>
                   </label>
 
-                  {!isScheduleNow && (
+                  {!isEditing && !isScheduleNow && (
                     <label className="flex items-center space-x-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -563,12 +591,12 @@ function CreateMeetingContent() {
                 </div>
               </div>
 
-                {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <p className="text-red-800 text-sm">{error}</p>
-              </div>
-            )}
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-800 text-sm">{error}</p>
+                </div>
+              )}
 
               <Button
                 type="submit"
@@ -578,12 +606,12 @@ function CreateMeetingContent() {
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Creating Meeting...
+                    {isEditing ? 'Updating Meeting...' : 'Creating Meeting...'}
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <Video className="w-5 h-5" />
-                    {isScheduleNow ? 'Create & Start Meeting' : 'Create Meeting'}
+                    {isEditing ? 'Update Meeting' : isScheduleNow ? 'Create & Start Meeting' : 'Create Meeting'}
                   </span>
                 )}
               </Button>

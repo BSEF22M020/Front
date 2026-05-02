@@ -48,6 +48,10 @@ import {
 import StreamVideoWrapper, { useMeetingData } from './stream'
 import { useSearchParams } from 'next/navigation'
 import useFaceMesh from '@/mediapipe/FaceMesh';
+import useDeepProcess from '@/mediapipe/DeepProcess'
+import axios from 'axios';
+import { API_PREFIX } from '@/constants/api';
+
 
 function MeetingPage() {
   const searchParams = useSearchParams()
@@ -100,6 +104,8 @@ export default function Page() {
     </Suspense>
   )
 }
+
+
 
 // ─── Stats Sidebar ────────────────────────────────────────────────────────────
 
@@ -562,6 +568,10 @@ function MeetingUI({
 
   useFaceMesh(videoRef as React.RefObject<HTMLVideoElement>, onScores)
 
+
+  // Here we are calling api where the deep engagement will be get
+
+
   // Added UseEffect to set up MediaPipe FaceMesh
  useEffect(() => {
     const track = mediaStream?.getVideoTracks()[0]
@@ -570,6 +580,27 @@ function MeetingUI({
     videoRef.current.srcObject = new MediaStream([track])
     videoRef.current.play().catch(console.error)
   }, [mediaStream])
+
+  const searchParams = useSearchParams()
+  // Here I am running deep face analysis
+   const { start } = useDeepProcess(videoRef, `${API_PREFIX}/api/upload`, {
+      userId: Number(searchParams.get("userId") || 0),
+      meetingId: Number(searchParams.get("meetingId") || 0),
+      durationSeconds: 10,
+      framesPerSecond: 6,
+      cropSize: 224,
+    })
+
+    useEffect(() => {
+      const interval = setInterval(()=>
+      {
+        console.log("Running deep process analysis...")
+        start()  
+      }, 30000)
+      return ()=>clearInterval(interval)
+    }, [])
+
+
 
    
 

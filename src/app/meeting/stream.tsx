@@ -7,7 +7,7 @@ import { Chat } from "stream-chat-react"
 require( "stream-chat-react/dist/css/v2/index.css")
 import { API_PREFIX } from "@/constants/api";
 import { Loader2 } from "lucide-react";
-import useFaceMesh from "@/mediapipe/FaceMesh";
+
 
 
 export const STREAM_API_KEY = process.env.NEXT_PUBLIC_STREAM_KEY
@@ -136,11 +136,11 @@ useEffect(() => {
 
     const sendMetrics = async () => {
       if (!cameraOnRef.current) return
-      const attentionVal =  scoresRef.current.attention / 100
-      const postureVal = scoresRef.current.posture / 100
+      const attentionVal =  scoresRef.current.attention
+      const postureVal = scoresRef.current.posture
 
-      setAttention(Math.round(attentionVal * 100))
-      setPosture(Math.round(postureVal * 100))
+      setAttention(Math.round(attentionVal))
+      setPosture(Math.round(postureVal))
 
       try {
         await fetch(`${API_PREFIX}/api/metrics`, {
