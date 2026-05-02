@@ -17,7 +17,6 @@ const submitResponse = async (data: { name: string; email: string; message: stri
       {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       }
     );

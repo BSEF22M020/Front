@@ -136,11 +136,11 @@ useEffect(() => {
 
     const sendMetrics = async () => {
       if (!cameraOnRef.current) return
-      const attentionVal =  scoresRef.current.attention / 100
-      const postureVal = scoresRef.current.posture / 100
+      const attentionVal =  scoresRef.current.attention
+      const postureVal = scoresRef.current.posture
 
-      setAttention(Math.round(attentionVal * 100))
-      setPosture(Math.round(postureVal * 100))
+      setAttention(Math.round(attentionVal))
+      setPosture(Math.round(postureVal))
 
       try {
         await fetch(`${API_PREFIX}/api/metrics`, {
