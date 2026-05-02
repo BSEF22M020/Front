@@ -30,49 +30,74 @@ export default function Auth() {
     image: '' 
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setIsLoading(true);
 
-    try{
-      if (!isLogin){
-        if (formData.confirmPassword !== formData.password){
-          setError('Passwords do not match');
-          setIsLoading(false);
-          return;
-        }
+  try {
+    if (!isLogin) {
+      if (formData.confirmPassword !== formData.password) {
+        setError('Passwords do not match');
+        setIsLoading(false);
+        return;
+      }
       const data = new FormData();
       data.append('name', formData.name);
       data.append('email', formData.email);
       data.append('password', formData.password);
-      
       if (formData.image instanceof File) {
-        data.append('image', formData.image); 
+        data.append('image', formData.image);
       }
-      const result= await axios.post(`${API_PREFIX}/api/signup` , data)
-      if(result.data){
+
+      try {
+        const result = await axios.post(`${API_PREFIX}/api/signup`, data);
+        if (result.data) {
           login(result.data.Token);
-          router.push('/auth/activate'); 
+          router.push('/auth/activate');
+        }
+      } catch (signupError) {
+        if (axios.isAxiosError(signupError)) {
+          if (signupError.response?.status === 409) {
+            // Account exists → switch to login tab
+            setIsLogin(true);
+            setError('Account already exists. Please login.');
+          } else {
+            setError(signupError.response?.data?.message || 'Something went wrong.');
+          }
+        }
+      }
+
+    } else {
+      try {
+        const result = await axios.post(`${API_PREFIX}/api/login`, formData);
+        if (result.data) {
+          login(result.data.Token);
+          router.push('/main');
+        }
+      } catch (loginError) {
+        if (axios.isAxiosError(loginError)) {
+          const message = loginError.response?.data?.message || '';
+
+          if (message === 'inactive') {
+            // Send a new code by calling signup won't work — use forgetPassword
+            // to resend the code to their email
+            await axios.post(`${API_PREFIX}/api/ForgetPassword`, {
+              email: formData.email,
+            });
+            router.push('/auth/activate');
+            return;
+          }
+
+          setError(message === 'Forbidden' ? 'Wrong password.' : message || 'Something went wrong.');
+        }
       }
     }
-    else{
-      const result= await axios.post(`${API_PREFIX}/api/login` , formData)
-      if(result.data){
-        login(result.data.Token);
-        router.push('/main'); 
-      }
-    }
-    }catch(error){
-        if (axios.isAxiosError(error)) {
-        setError(error.response?.data?.message || 'Something went wrong. Please try again.');
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
