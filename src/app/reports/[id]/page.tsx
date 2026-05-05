@@ -134,18 +134,21 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const totalParticipants = participants.length;
 
   const getEngagement = (p: MeetingParticipantDto) =>
-    p.avgAttention > 0 ? Math.round(p.avgAttention) : Math.round((p.avgGaze + p.avgFace) / 2);
+    p.avgFace > 0 ? Math.round(p.avgFace) : Math.round((p.avgGaze + p.avgAttention) / 2);
 
   const avgAttentionAll = participants.length === 0 ? 0 : Math.round(participants.reduce((a, p) => a + p.avgAttention, 0) / participants.length);
   const avgGazeAll      = participants.length === 0 ? 0 : Math.round(participants.reduce((a, p) => a + p.avgGaze, 0) / participants.length);
   const avgFaceAll      = participants.length === 0 ? 0 : Math.round(participants.reduce((a, p) => a + p.avgFace, 0) / participants.length);
   const avgEngagement   = participants.length === 0 ? 0 : Math.round(participants.reduce((a, p) => a + getEngagement(p), 0) / participants.length);
 
-  const attendanceRate = participants.length === 0 ? 0 :
-    Math.min(100, Math.round(
-      (participants.reduce((sum, p) => sum + (p.totalActiveSeconds || 0), 0) /
-      (participants.length * meetingDurationMinutes * 60)) * 100
-    ));
+ const maxActiveSeconds = participants.length === 0 ? 0 :
+  Math.max(...participants.map(p => p.totalActiveSeconds || 0))
+
+  console.log("Max active second are : ", maxActiveSeconds)
+  console.log("Total duration is :", meetingDurationMinutes*60)
+
+const attendanceRate = (meetingDurationMinutes === 0 || maxActiveSeconds === 0) ? 0 :
+  Math.min(100, Math.round((maxActiveSeconds / (meetingDurationMinutes*60)) * 100))
 
   const participation = participants.length === 0 || expectedParticipants === 0
     ? 0
@@ -193,7 +196,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     },
     {
       label: 'Attention',
-      value: avgAttentionAll,
+      value: avgGazeAll,
       color: '#7C3AED',
       glow: 'rgba(124,58,237,0.3)',
       bg: 'from-purple-500/10 to-purple-600/5',
@@ -203,7 +206,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     },
     {
       label: 'Attentiveness',
-      value: avgEngagement,
+      value: avgAttentionAll,
       color: '#059669',
       glow: 'rgba(5,150,105,0.3)',
       bg: 'from-emerald-500/10 to-emerald-600/5',

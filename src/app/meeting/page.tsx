@@ -109,28 +109,6 @@ export default function Page() {
 
 // ─── Stats Sidebar ────────────────────────────────────────────────────────────
 
-function ArcRing({ value }: { value: number }) {
-  const r = 15
-  const circ = 2 * Math.PI * r
-  const offset = circ - (circ * (value / 100))
-  return (
-    <svg viewBox="0 0 38 38" style={{ width: 38, height: 38, transform: 'rotate(-90deg)' }}>
-      <circle cx="19" cy="19" r={r} fill="none" stroke="#B5D4F4" strokeWidth="2.5" />
-      <circle
-        cx="19" cy="19" r={r} fill="none"
-        stroke="#185FA5" strokeWidth="2.5"
-        strokeDasharray={circ.toFixed(2)}
-        strokeDashoffset={offset.toFixed(2)}
-        strokeLinecap="round"
-        style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)' }}
-      />
-    </svg>
-  )
-}
-
-const SCROLL_WIDTHS = [22, 30, 18, 26, 14, 28, 20, 16, 24, 20, 18, 22]
-const SCROLL_OPACITIES = [0.7, 0.9, 0.55, 0.75, 0.85, 0.6, 0.8, 0.5, 0.9, 0.65, 0.7, 0.55]
-
 function StatsSidebar({
   posture,
   attention,
@@ -142,21 +120,26 @@ function StatsSidebar({
   visible: boolean
   onToggle: () => void
 }) {
-  const postureColor   = posture   >= 70 ? '#3B6D11' : posture   >= 40 ? '#854F0B' : '#A32D2D'
-  const postureBarColor= posture   >= 70 ? '#639922' : posture   >= 40 ? '#BA7517' : '#E24B4A'
-  const postureHint    = posture   >= 70 ? 'Good posture — keep it up' : posture >= 40 ? 'Sit up straighter' : 'Poor — adjust position'
-  const attentionHint  = attention >= 70 ? 'Highly focused' : attention >= 40 ? 'Stay focused' : 'Eyes on screen'
+  const postureColor    = posture >= 70 ? '#3B6D11' : posture >= 40 ? '#854F0B' : '#A32D2D'
+  const postureBarColor = posture >= 70 ? '#639922' : posture >= 40 ? '#BA7517' : '#E24B4A'
+  const postureHint     = posture >= 70 ? 'Good posture — keep it up' : posture >= 40 ? 'Sit up straighter' : 'Poor — adjust position'
+  const attentionHint   = attention >= 70 ? 'Highly focused' : attention >= 40 ? 'Stay focused' : 'Eyes on screen'
 
-  // doubled strip for seamless loop
+  // Scrolling bar strip for "calculating" animation
+  const SCROLL_WIDTHS    = [22, 30, 18, 26, 14, 28, 20, 16, 24, 20, 18, 22]
+  const SCROLL_OPACITIES = [0.7, 0.9, 0.55, 0.75, 0.85, 0.6, 0.8, 0.5, 0.9, 0.65, 0.7, 0.55]
   const strip = [...SCROLL_WIDTHS, ...SCROLL_WIDTHS]
   const ops   = [...SCROLL_OPACITIES, ...SCROLL_OPACITIES]
 
   return (
-    <div className="relative flex h-full shrink-0">
-      {/* toggle tab */}
+    // FIX 1: Smoother sidebar — use `translate` instead of `width` animation to avoid layout reflow jank.
+    // The sidebar always occupies its full width in the DOM; we just slide it in/out with translateX.
+    <div className="relative flex h-full shrink-0" style={{ width: 220 }}>
+      {/* Toggle tab — sits on the left edge, always visible */}
       <button
         onClick={onToggle}
         className="absolute -left-6 top-1/2 -translate-y-1/2 z-20 w-6 h-12 bg-white border border-gray-200 border-r-0 rounded-l-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+        aria-label={visible ? 'Hide analytics' : 'Show analytics'}
       >
         {visible
           ? <ChevronRight size={13} className="text-gray-400" />
@@ -164,13 +147,20 @@ function StatsSidebar({
         }
       </button>
 
+      {/* Panel — slides in/out with translateX so width stays constant (no layout shift) */}
       <div
-        className="overflow-hidden transition-all duration-300 ease-in-out border-l border-gray-200 bg-white flex flex-col h-full"
-        style={{ width: visible ? 220 : 0 }}
+        className="border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden"
+        style={{
+          width: 220,
+          transform: visible ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+          // Keep it in flow but visually hidden when closed so the toggle tab still has something to anchor to
+          pointerEvents: visible ? 'auto' : 'none',
+        }}
       >
         <div className="flex flex-col h-full overflow-y-auto" style={{ width: 220 }}>
 
-          {/* header */}
+          {/* Header */}
           <div className="px-3.5 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">
               Live analytics
@@ -181,11 +171,14 @@ function StatsSidebar({
             </span>
           </div>
 
-          {/* posture */}
+          {/* Posture */}
           <div className="px-3.5 py-3.5 border-b border-gray-100">
             <div className="flex justify-between items-baseline mb-2">
               <span className="text-xs text-gray-500">Posture</span>
-              <span className="text-[12px] font-medium transition-colors duration-500" style={{ color: postureColor }}>
+              <span
+                className="text-[12px] font-medium transition-colors duration-500"
+                style={{ color: postureColor }}
+              >
                 {posture}/100
               </span>
             </div>
@@ -202,7 +195,7 @@ function StatsSidebar({
             <span className="text-[11px] text-gray-400">{postureHint}</span>
           </div>
 
-          {/* attention */}
+          {/* Attention */}
           <div className="px-3.5 py-3.5 border-b border-gray-100">
             <div className="flex justify-between items-baseline mb-2">
               <span className="text-xs text-gray-500">Attention</span>
@@ -222,33 +215,22 @@ function StatsSidebar({
             <span className="text-[11px] text-gray-400">{attentionHint}</span>
           </div>
 
-          {/* engagement */}
+          {/* FIX 2: "Calculating" notice — blue only, no engagement score ring */}
           <div className="px-3.5 py-3.5 flex-1">
             <span className="text-xs text-gray-500 block mb-2.5">Engagement score</span>
 
             <div className="rounded-xl p-3" style={{ background: '#E6F1FB' }}>
-              {/* arc + label row */}
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="relative shrink-0" style={{ width: 38, height: 38 }}>
-                  <ArcRing value={attention} />
-                  <span
-                    className="absolute inset-0 flex items-center justify-center text-[10px] font-medium"
-                    style={{ color: '#185FA5' }}
-                  >
-                    —
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[12px] font-medium leading-tight mb-0.5" style={{ color: '#0C447C' }}>
-                    Calculating…
-                  </p>
-                  <p className="text-[11px]" style={{ color: '#378ADD' }}>
-                    Deep tracking active
-                  </p>
-                </div>
+              {/* Blue pulse dot + label */}
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shrink-0"
+                />
+                <p className="text-[12px] font-medium leading-tight" style={{ color: '#0C447C' }}>
+                  Calculating…
+                </p>
               </div>
 
-              {/* rolling bar strip */}
+              {/* Scrolling bar strip (blue) */}
               <div className="overflow-hidden rounded-sm mb-2.5" style={{ height: 6 }}>
                 <div
                   className="flex gap-[3px]"
@@ -278,7 +260,7 @@ function StatsSidebar({
               </p>
             </div>
 
-            {/* notice strip */}
+            {/* Notice strip */}
             <div
               className="mt-2.5 px-2.5 py-2 rounded-lg"
               style={{ background: '#E6F1FB', border: '0.5px solid #B5D4F4' }}
@@ -292,7 +274,6 @@ function StatsSidebar({
         </div>
       </div>
 
-      {/* keyframe injected once */}
       <style>{`
         @keyframes statsSidebarScroll {
           0%   { transform: translateX(0); }
@@ -431,8 +412,10 @@ function MeetingWithChat({ meetingId }: { meetingId: string }) {
   if (!channel) return null
 
   return (
-    <div className="h-screen flex bg-gradient-to-br from-alice-white to-white relative overflow-hidden">
-      <div className="flex-1 flex flex-col min-w-0">
+    // FIX 3: Use `dvh` (dynamic viewport height) so mobile browser chrome doesn't push buttons off screen.
+    // Also switched from h-screen to a flex column that fills the dynamic viewport.
+    <div className="flex bg-gradient-to-br from-alice-white to-white relative overflow-hidden" style={{ height: '100dvh' }}>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <MeetingUI
           onToggleChat={() => setShowChat(!showChat)}
           showChat={showChat}
@@ -440,12 +423,15 @@ function MeetingWithChat({ meetingId }: { meetingId: string }) {
         />
       </div>
 
-      <StatsSidebar
-        posture={posture}
-        attention={attention}
-        visible={showStats}
-        onToggle={() => setShowStats(v => !v)}
-      />
+      {/* Stats sidebar hidden on mobile */}
+      <div className="hidden md:flex h-full">
+        <StatsSidebar
+          posture={posture}
+          attention={attention}
+          visible={showStats}
+          onToggle={() => setShowStats(v => !v)}
+        />
+      </div>
 
       {showChat && (
         <>
@@ -484,7 +470,7 @@ function MeetingWithChat({ meetingId }: { meetingId: string }) {
 
 function MeetingEndedScreen() {
   return (
-    <div className="h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div className="flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900" style={{ height: '100dvh' }}>
       <div className="text-center max-w-md mx-auto px-8">
         <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/30">
           <PhoneOff className="w-12 h-12 text-red-400" />
@@ -511,8 +497,7 @@ function MeetingUI({
   const participants = useParticipants()
   const { microphone, isMute } = useMicrophoneState()
   const { camera, isMute: cameraOff } = useCameraState()
-  // Added video ref object
-  
+
   const mediaStream = camera.state.mediaStream
 
   const { status: screenShareStatus } = useScreenShareState()
@@ -566,43 +551,34 @@ function MeetingUI({
     }
   }, [screenShareError])
 
+  // FIX 4: Start FaceMesh immediately on mount — useFaceMesh runs as soon as videoRef is populated
   useFaceMesh(videoRef as React.RefObject<HTMLVideoElement>, onScores)
 
-
-  // Here we are calling api where the deep engagement will be get
-
-
-  // Added UseEffect to set up MediaPipe FaceMesh
- useEffect(() => {
+  // Wire the local camera stream into the hidden video element for FaceMesh analysis
+  useEffect(() => {
     const track = mediaStream?.getVideoTracks()[0]
     if (!track || !videoRef.current) return
-
     videoRef.current.srcObject = new MediaStream([track])
     videoRef.current.play().catch(console.error)
   }, [mediaStream])
 
   const searchParams = useSearchParams()
-  // Here I am running deep face analysis
-   const { start } = useDeepProcess(videoRef, `${API_PREFIX}/api/upload`, {
-      userId: Number(searchParams.get("userId") || 0),
-      meetingId: Number(searchParams.get("meetingId") || 0),
-      durationSeconds: 10,
-      framesPerSecond: 6,
-      cropSize: 224,
-    })
 
-    useEffect(() => {
-      const interval = setInterval(()=>
-      {
-        console.log("Running deep process analysis...")
-        start()  
-      }, 30000)
-      return ()=>clearInterval(interval)
-    }, [])
+  const { start } = useDeepProcess(videoRef, `${API_PREFIX}/api/upload`, {
+    userId: Number(searchParams.get("userId") || 0),
+    meetingId: Number(searchParams.get("meetingId") || 0),
+    durationSeconds: 10,
+    framesPerSecond: 6,
+    cropSize: 224,
+  })
 
-
-
-   
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log("Running deep process analysis...")
+      start()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const toggleMic = async () => {
     try {
@@ -666,7 +642,9 @@ function MeetingUI({
   if (meetingEnded) return <MeetingEndedScreen />
 
   return (
+    // FIX 3 cont.: flex column filling parent height — no explicit h-screen here so it respects 100dvh from parent
     <div className="h-full flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Hidden video for FaceMesh — always in DOM so analysis starts immediately */}
       <video ref={videoRef} muted playsInline style={{ display: 'none' }} />
 
       {showWarning && remainingSeconds !== null && remainingSeconds > 0 && (
@@ -726,7 +704,8 @@ function MeetingUI({
         </div>
       )}
 
-      <div className="flex-1 p-3 sm:p-6 md:p-8 overflow-auto">
+      {/* Scrollable video grid — flex-1 so it fills remaining space above the fixed controls */}
+      <div className="flex-1 p-3 sm:p-6 md:p-8 overflow-auto min-h-0">
         {someoneIsSharing ? (
           <div className="flex gap-4 h-full">
             <div className="flex-1 relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-green-400/40">
@@ -833,11 +812,15 @@ function MeetingUI({
         )}
       </div>
 
-      <div className="bg-white/90 backdrop-blur-lg border-t border-gray-200 px-3 sm:px-8 py-4 sm:py-6 shadow-2xl shrink-0">
+      {/* FIX 3 cont.: Bottom controls bar — shrink-0 keeps it pinned, safe-area padding for iOS notch/home bar */}
+      <div
+        className="bg-white/90 backdrop-blur-lg border-t border-gray-200 px-3 sm:px-8 py-4 sm:py-5 shadow-2xl shrink-0"
+        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
         <div className="flex justify-center items-center gap-2 sm:gap-4 flex-wrap">
           <button
             onClick={toggleMic}
-            className={`p-4 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${isMute ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
+            className={`p-3.5 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${isMute ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
             title={isMute ? 'Unmute' : 'Mute'}
           >
             {isMute ? <MicOff size={20} className="sm:w-6 sm:h-6" /> : <Mic size={20} className="sm:w-6 sm:h-6" />}
@@ -845,7 +828,7 @@ function MeetingUI({
 
           <button
             onClick={toggleCam}
-            className={`p-4 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${cameraOff ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
+            className={`p-3.5 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${cameraOff ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
             title={cameraOff ? 'Turn on camera' : 'Turn off camera'}
           >
             {cameraOff ? <VideoOff size={20} className="sm:w-6 sm:h-6" /> : <Video size={20} className="sm:w-6 sm:h-6" />}
@@ -853,7 +836,7 @@ function MeetingUI({
 
           <button
             onClick={toggleScreenShare}
-            className={`p-4 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 hidden sm:flex items-center justify-center ${isLocalUserSharing ? 'bg-gradient-to-br from-green-500 to-green-600 text-white ring-2 ring-green-300 ring-offset-1' : someoneIsSharing ? 'bg-white text-gray-400 border-2 border-gray-200 opacity-50 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
+            className={`p-3.5 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 hidden sm:flex items-center justify-center ${isLocalUserSharing ? 'bg-gradient-to-br from-green-500 to-green-600 text-white ring-2 ring-green-300 ring-offset-1' : someoneIsSharing ? 'bg-white text-gray-400 border-2 border-gray-200 opacity-50 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
             disabled={someoneIsSharing && !isLocalUserSharing}
             title={isLocalUserSharing ? 'Stop sharing' : someoneIsSharing ? `${nameOf(screenSharingParticipant)} is already sharing` : 'Share screen'}
           >
@@ -862,7 +845,7 @@ function MeetingUI({
 
           <button
             onClick={onToggleChat}
-            className={`p-4 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${showChat ? 'bg-gradient-to-br from-royal-blue to-deep-wine text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
+            className={`p-3.5 sm:p-5 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${showChat ? 'bg-gradient-to-br from-royal-blue to-deep-wine text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'}`}
             title="Toggle chat"
           >
             <MessageSquare size={20} className="sm:w-6 sm:h-6" />
@@ -872,7 +855,7 @@ function MeetingUI({
 
           <button
             onClick={leave}
-            className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
+            className="p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
             title="Leave meeting"
           >
             <PhoneOff size={20} className="sm:w-6 sm:h-6" />

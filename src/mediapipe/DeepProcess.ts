@@ -16,7 +16,7 @@ export default function useDeepProcess(
   const {
     userId,
     meetingId,
-    durationSeconds = 10,
+    durationSeconds = 11,
     framesPerSecond = 6,
     cropSize        = 224,
   } = options
