@@ -621,7 +621,7 @@ const attendanceRate = (meetingDurationMinutes === 0 || maxActiveSeconds === 0) 
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-xs mb-4">
-                    {[['Attention', participant.avgAttention, '#3b82f6'], ['Gaze', participant.avgGaze, '#7c3aed'], ['Posture', participant.avgFace, '#059669']].map(([label, val, color]) => (
+                    {[['Attention', participant.avgFace, '#3b82f6'], ['Gaze', participant.avgGaze, '#7c3aed'], ['Posture', participant.avgAttention, '#059669']].map(([label, val, color]) => (
                       <div key={label as string} className="text-center bg-alice-white/50 rounded-xl p-1.5 sm:p-2">
                         <div className="text-onyx-gray/60 mb-1">{label}</div>
                         <div className="font-bold text-rich-black" style={{ color: color as string }}>{Math.round(val as number)}%</div>
