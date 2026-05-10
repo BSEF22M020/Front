@@ -624,16 +624,17 @@ function MeetingUI({
 
   const nameOf = (p: any) => p.isLocalParticipant ? 'You' : p.name || p.userId || 'Guest'
 
-  const getGridClass = () => {
-    const count = participants.length
-    if (focusedParticipant) return 'grid-cols-1'
-    if (count === 1) return 'grid-cols-1'
-    if (count === 2) return 'grid-cols-1 md:grid-cols-2'
-    if (count <= 4) return 'grid-cols-1 sm:grid-cols-2'
-    if (count <= 6) return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-    if (count <= 9) return 'grid-cols-2 md:grid-cols-3'
-    return 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-  }
+ const getGridClass = () => {
+  const count = participants.length
+  if (focusedParticipant) return 'grid-cols-1'
+  if (count === 1)  return 'grid-cols-1'
+  if (count === 2)  return 'grid-cols-2'
+  if (count === 3)  return 'grid-cols-3'
+  if (count === 4)  return 'grid-cols-2'
+  if (count <= 6)   return 'grid-cols-3'
+  if (count <= 9)   return 'grid-cols-3'
+  return 'grid-cols-4'
+}
 
   const displayParticipants = focusedParticipant && !someoneIsSharing
     ? participants.filter(p => p.sessionId === focusedParticipant)
@@ -755,7 +756,7 @@ function MeetingUI({
             </div>
           </div>
         ) : (
-          <div className={`grid gap-3 sm:gap-4 md:gap-5 ${getGridClass()} h-full content-start`}>
+          <div className={`grid gap-3 sm:gap-4 md:gap-5 ${getGridClass()}`}>
             {displayParticipants.map(p => {
               const isVideoOff = p.isLocalParticipant ? cameraOff : !hasVideo(p)
               const isAudioOff = p.isLocalParticipant ? isMute : !hasAudio(p)

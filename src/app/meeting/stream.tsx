@@ -88,7 +88,7 @@ export default function StreamVideoWrapper({ children, userId, meetingId }: Prop
       await fetch(`${API_PREFIX}/api/metrics`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ meetingId, userId: id, attention: attentionVal, posture: postureVal, window: 20 })
+        body: JSON.stringify({ meetingId, userId: id, attention: attentionVal, posture: postureVal, window: 1 })
       })
     } catch (err) {
       console.error("Metrics update failed", err)
