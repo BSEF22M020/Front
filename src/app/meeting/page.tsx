@@ -567,7 +567,7 @@ function MeetingUI({
   const { start } = useDeepProcess(videoRef, `${API_PREFIX}/api/upload`, {
     userId: Number(searchParams.get("userId") || 0),
     meetingId: Number(searchParams.get("meetingId") || 0),
-    durationSeconds: 10,
+    durationSeconds: 11,
     framesPerSecond: 6,
     cropSize: 224,
   })
